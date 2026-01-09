@@ -10,6 +10,14 @@ from sqlalchemy import func, select
 
 from src.config import settings
 from src.database import async_session
+from src.keyboards import (
+    BTN_MY_DREAMS,
+    BTN_NEW_DREAM,
+    BTN_SKIP,
+    get_cancel_keyboard,
+    get_main_menu,
+    get_skip_cancel_keyboard,
+)
 from src.models import Dream, User
 
 router = Router()
@@ -52,6 +60,7 @@ async def get_dream_by_id(dream_id: int, user_id: int) -> Dream | None:
 
 
 @router.message(Command("new"))
+@router.message(F.text == BTN_NEW_DREAM)
 async def cmd_new(message: Message, state: FSMContext) -> None:
     """Start creating a new dream entry."""
     if message.from_user is None:
@@ -66,8 +75,8 @@ async def cmd_new(message: Message, state: FSMContext) -> None:
     await state.set_state(NewDreamStates.waiting_for_title)
     await message.answer(
         "<b>Creating a new dream entry</b>\n\n"
-        "Step 1/5: Enter the <b>title</b> of your dream.\n"
-        "(Use /cancel to abort)"
+        "Step 1/5: Enter the <b>title</b> of your dream.",
+        reply_markup=get_cancel_keyboard(),
     )
 
 
@@ -86,20 +95,21 @@ async def process_title(message: Message, state: FSMContext) -> None:
     await state.update_data(title=title)
     await state.set_state(NewDreamStates.waiting_for_description)
     await message.answer(
-        "Step 2/5: Enter the <b>description</b> of your dream.\n"
-        "(Or send /skip to leave it empty)"
+        "Step 2/5: Enter the <b>description</b> of your dream.",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
 @router.message(NewDreamStates.waiting_for_description, Command("skip"))
+@router.message(NewDreamStates.waiting_for_description, F.text == BTN_SKIP)
 async def skip_description(message: Message, state: FSMContext) -> None:
     """Skip description."""
     await state.update_data(description="")
     await state.set_state(NewDreamStates.waiting_for_tags)
     await message.answer(
         "Step 3/5: Enter <b>tags</b> (comma-separated keywords).\n"
-        "Example: flying, lucid, nightmare\n"
-        "(Or send /skip to leave empty)"
+        "Example: flying, lucid, nightmare",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
@@ -107,26 +117,27 @@ async def skip_description(message: Message, state: FSMContext) -> None:
 async def process_description(message: Message, state: FSMContext) -> None:
     """Process dream description."""
     if not message.text:
-        await message.answer("Please enter a text description or /skip.")
+        await message.answer("Please enter a text description or tap Skip.")
         return
 
     await state.update_data(description=message.text.strip())
     await state.set_state(NewDreamStates.waiting_for_tags)
     await message.answer(
         "Step 3/5: Enter <b>tags</b> (comma-separated keywords).\n"
-        "Example: flying, lucid, nightmare\n"
-        "(Or send /skip to leave empty)"
+        "Example: flying, lucid, nightmare",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
 @router.message(NewDreamStates.waiting_for_tags, Command("skip"))
+@router.message(NewDreamStates.waiting_for_tags, F.text == BTN_SKIP)
 async def skip_tags(message: Message, state: FSMContext) -> None:
     """Skip tags."""
     await state.update_data(tags="")
     await state.set_state(NewDreamStates.waiting_for_notes)
     await message.answer(
-        "Step 4/5: Enter any personal <b>notes</b> or comments.\n"
-        "(Or send /skip to leave empty)"
+        "Step 4/5: Enter any personal <b>notes</b> or comments.",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
@@ -134,7 +145,7 @@ async def skip_tags(message: Message, state: FSMContext) -> None:
 async def process_tags(message: Message, state: FSMContext) -> None:
     """Process dream tags."""
     if not message.text:
-        await message.answer("Please enter tags or /skip.")
+        await message.answer("Please enter tags or tap Skip.")
         return
 
     tags = message.text.strip()
@@ -145,19 +156,21 @@ async def process_tags(message: Message, state: FSMContext) -> None:
     await state.update_data(tags=tags)
     await state.set_state(NewDreamStates.waiting_for_notes)
     await message.answer(
-        "Step 4/5: Enter any personal <b>notes</b> or comments.\n"
-        "(Or send /skip to leave empty)"
+        "Step 4/5: Enter any personal <b>notes</b> or comments.",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
 @router.message(NewDreamStates.waiting_for_notes, Command("skip"))
+@router.message(NewDreamStates.waiting_for_notes, F.text == BTN_SKIP)
 async def skip_notes(message: Message, state: FSMContext) -> None:
     """Skip notes."""
     await state.update_data(notes="")
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
-        "Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"(Or send /skip to use today: {date.today()})"
+        f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
+        f"Tap Skip to use today: {date.today()}",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
@@ -165,18 +178,20 @@ async def skip_notes(message: Message, state: FSMContext) -> None:
 async def process_notes(message: Message, state: FSMContext) -> None:
     """Process dream notes."""
     if not message.text:
-        await message.answer("Please enter notes or /skip.")
+        await message.answer("Please enter notes or tap Skip.")
         return
 
     await state.update_data(notes=message.text.strip())
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
-        "Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"(Or send /skip to use today: {date.today()})"
+        f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
+        f"Tap Skip to use today: {date.today()}",
+        reply_markup=get_skip_cancel_keyboard(),
     )
 
 
 @router.message(NewDreamStates.waiting_for_date, Command("skip"))
+@router.message(NewDreamStates.waiting_for_date, F.text == BTN_SKIP)
 async def skip_date(message: Message, state: FSMContext) -> None:
     """Skip date (use today)."""
     await state.update_data(dream_date=date.today())
@@ -225,7 +240,8 @@ async def save_new_dream(message: Message, state: FSMContext) -> None:
             f"<b>ID:</b> {dream.id}\n"
             f"<b>Title:</b> {escape(dream.title)}\n"
             f"<b>Date:</b> {dream.dream_date}\n\n"
-            f"Use /view {dream.id} to see the full entry."
+            f"Use /view {dream.id} to see the full entry.",
+            reply_markup=get_main_menu(),
         )
 
 
@@ -250,6 +266,7 @@ def build_pagination_keyboard(page: int, total_pages: int) -> InlineKeyboardMark
 
 
 @router.message(Command("list"))
+@router.message(F.text == BTN_MY_DREAMS)
 async def cmd_list(message: Message) -> None:
     """List user's dreams with pagination."""
     if message.from_user is None:

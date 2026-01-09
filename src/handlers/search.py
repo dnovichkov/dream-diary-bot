@@ -1,15 +1,59 @@
 from html import escape
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from sqlalchemy import or_, select
 
 from src.database import async_session
 from src.handlers.dreams import get_user_id
+from src.keyboards import BTN_SEARCH, get_cancel_keyboard, get_main_menu
 from src.models import Dream
 
 router = Router()
+
+
+class SearchStates(StatesGroup):
+    """States for search."""
+
+    waiting_for_query = State()
+
+
+@router.message(F.text == BTN_SEARCH)
+async def btn_search(message: Message, state: FSMContext) -> None:
+    """Handle Search button - ask for search query."""
+    if message.from_user is None:
+        return
+
+    user_id = await get_user_id(message.from_user.id)
+    if user_id is None:
+        await message.answer("Please use /start first to register.")
+        return
+
+    await state.update_data(user_id=user_id)
+    await state.set_state(SearchStates.waiting_for_query)
+    await message.answer(
+        "Enter your search query.\n"
+        "Searches in title, description, tags, and notes.",
+        reply_markup=get_cancel_keyboard(),
+    )
+
+
+@router.message(SearchStates.waiting_for_query)
+async def process_search_query(message: Message, state: FSMContext) -> None:
+    """Process search query from button flow."""
+    if not message.text:
+        await message.answer("Please enter a search query.")
+        return
+
+    data = await state.get_data()
+    user_id = data["user_id"]
+    query = message.text.strip().lower()
+
+    await state.clear()
+    await perform_search(message, user_id, query)
 
 
 @router.message(Command("search"))
@@ -27,12 +71,18 @@ async def cmd_search(message: Message, command: CommandObject) -> None:
         await message.answer(
             "Usage: /search [query]\n"
             "Example: /search flying\n\n"
-            "Searches in title, description, and tags."
+            "Searches in title, description, tags, and notes.\n"
+            "Or tap the <b>Search</b> button in menu.",
+            reply_markup=get_main_menu(),
         )
         return
 
     query = command.args.strip().lower()
+    await perform_search(message, user_id, query)
 
+
+async def perform_search(message: Message, user_id: int, query: str) -> None:
+    """Perform the actual search and display results."""
     async with async_session() as session:
         # Search in title, description, tags, and notes (case-insensitive)
         search_pattern = f"%{query}%"
@@ -54,7 +104,10 @@ async def cmd_search(message: Message, command: CommandObject) -> None:
         dreams = result.scalars().all()
 
         if not dreams:
-            await message.answer(f'No dreams found matching "{escape(query)}".')
+            await message.answer(
+                f'No dreams found matching "{escape(query)}".',
+                reply_markup=get_main_menu(),
+            )
             return
 
         lines = [f'<b>Search results for "{escape(query)}":</b>\n']
@@ -66,4 +119,4 @@ async def cmd_search(message: Message, command: CommandObject) -> None:
             lines.append("(Showing first 20 results)")
         lines.append("\nUse /view [id] to see details.")
 
-        await message.answer("\n".join(lines))
+        await message.answer("\n".join(lines), reply_markup=get_main_menu())
