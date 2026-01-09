@@ -7,7 +7,7 @@
 
 services:
   bot:
-    image: ghcr.io/your-username/dream-diary-bot:main  # Change your-username to your GitHub username
+    image: ghcr.io/dnovichkov/dream-diary-bot:main
     restart: unless-stopped
     depends_on:
       db:
