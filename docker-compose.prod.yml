@@ -1,0 +1,47 @@
+# Production docker-compose - uses pre-built image from GitHub Container Registry
+# Usage:
+#   1. Copy this file and .env to your server
+#   2. Edit .env with your BOT_TOKEN and POSTGRES_PASSWORD
+#   3. Run: docker-compose -f docker-compose.prod.yml up -d
+#   4. To update: docker-compose -f docker-compose.prod.yml pull && docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  bot:
+    image: ghcr.io/your-username/dream-diary-bot:main  # Change your-username to your GitHub username
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - POSTGRES_USER=${POSTGRES_USER:-dreambot}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-dreamdiary}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+    networks:
+      - dream-network
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-dreambot}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-dreamdiary}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dreambot} -d ${POSTGRES_DB:-dreamdiary}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dream-network
+
+volumes:
+  postgres_data:
+
+networks:
+  dream-network:
+    driver: bridge
