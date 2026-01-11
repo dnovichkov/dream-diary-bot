@@ -17,6 +17,7 @@ HELP_TEXT = """
 • <b>New dream</b> - Create a new dream entry
 • <b>My dreams</b> - View your dreams list
 • <b>Search</b> - Search dreams by keywords
+• <b>Export</b> - Export all dreams to a text file
 • <b>Help</b> - Show this help message
 
 <b>Commands:</b>
@@ -26,6 +27,7 @@ HELP_TEXT = """
 /view &lt;id&gt; - View a specific dream
 /edit &lt;id&gt; - Edit a dream entry
 /delete &lt;id&gt; - Delete a dream entry
+/export - Export all dreams to a text file
 /cancel - Cancel current operation
 /help - Show this help message
 

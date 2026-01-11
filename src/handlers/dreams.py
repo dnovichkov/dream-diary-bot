@@ -1,16 +1,18 @@
 from datetime import date
 from html import escape
+from io import BytesIO
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import func, select
 
 from src.config import settings
 from src.database import async_session
 from src.keyboards import (
+    BTN_EXPORT,
     BTN_MY_DREAMS,
     BTN_NEW_DREAM,
     BTN_SKIP,
@@ -601,3 +603,81 @@ async def process_delete_confirmation(callback: CallbackQuery) -> None:
 
         await callback.message.edit_text(f"Dream #{dream_id} has been deleted.")
         await callback.answer("Deleted")
+
+
+# --- EXPORT DREAMS ---
+
+
+def format_dream_for_export(dream: Dream, index: int) -> str:
+    """Format a single dream for text export."""
+    lines = [
+        "=" * 40,
+        f"Dream #{index} | {dream.dream_date}",
+        "-" * 40,
+        f"Title: {dream.title}",
+    ]
+
+    if dream.description:
+        lines.append(f"\nDescription:\n{dream.description}")
+
+    if dream.tags:
+        lines.append(f"\nTags: {dream.tags}")
+
+    if dream.notes:
+        lines.append(f"\nNotes:\n{dream.notes}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+@router.message(Command("export"))
+@router.message(F.text == BTN_EXPORT)
+async def cmd_export(message: Message) -> None:
+    """Export all user's dreams to a text file."""
+    if message.from_user is None:
+        return
+
+    user_id = await get_user_id(message.from_user.id)
+    if user_id is None:
+        await message.answer("Please use /start first to register.")
+        return
+
+    async with async_session() as session:
+        stmt = (
+            select(Dream)
+            .where(Dream.user_id == user_id)
+            .order_by(Dream.dream_date.desc(), Dream.id.desc())
+        )
+        result = await session.execute(stmt)
+        dreams = result.scalars().all()
+
+    if not dreams:
+        await message.answer(
+            "Your dream diary is empty.\nUse /new to create your first entry.",
+            reply_markup=get_main_menu(),
+        )
+        return
+
+    # Build text content
+    lines = [
+        "Dream Diary",
+        f"Export date: {date.today()}",
+        f"Total dreams: {len(dreams)}",
+        "",
+    ]
+
+    for i, dream in enumerate(dreams, start=1):
+        lines.append(format_dream_for_export(dream, i))
+
+    content = "\n".join(lines)
+
+    # Create file
+    file_bytes = content.encode("utf-8")
+    filename = f"dreams_export_{date.today()}.txt"
+    input_file = BufferedInputFile(file_bytes, filename=filename)
+
+    await message.answer_document(
+        document=input_file,
+        caption=f"Your dream diary export ({len(dreams)} dreams)",
+        reply_markup=get_main_menu(),
+    )

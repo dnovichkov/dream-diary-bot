@@ -10,6 +10,7 @@ from aiogram.types import (
 BTN_NEW_DREAM = "New dream"
 BTN_MY_DREAMS = "My dreams"
 BTN_SEARCH = "Search"
+BTN_EXPORT = "Export"
 BTN_HELP = "Help"
 BTN_SKIP = "Skip"
 BTN_CANCEL = "Cancel"
@@ -25,6 +26,9 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             ],
             [
                 KeyboardButton(text=BTN_SEARCH),
+                KeyboardButton(text=BTN_EXPORT),
+            ],
+            [
                 KeyboardButton(text=BTN_HELP),
             ],
         ],
