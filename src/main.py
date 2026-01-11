@@ -13,11 +13,27 @@ from src.config import settings
 from src.database import init_db
 from src.handlers import setup_routers
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stdout,
-)
+
+def setup_logging() -> None:
+    """Configure logging with flushing handler."""
+    # Clear existing handlers
+    logging.root.handlers.clear()
+
+    # Create handler with immediate flushing
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+
+    logging.root.addHandler(handler)
+    logging.root.setLevel(logging.INFO)
+
+    # Re-enable all loggers (fileConfig disables existing loggers)
+    for name in logging.Logger.manager.loggerDict:
+        logging.getLogger(name).disabled = False
+
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -30,11 +46,6 @@ def run_migrations() -> None:
 async def main() -> None:
     """Initialize and start the bot."""
     logger.info("Starting Dream Diary Bot...")
-
-    # Run database migrations
-    logger.info("Running database migrations...")
-    run_migrations()
-    logger.info("Migrations completed")
 
     # Initialize database (creates tables if not exist)
     logger.info("Initializing database...")
@@ -63,4 +74,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    logger.info("Running database migrations...")
+    run_migrations()
+    # Reconfigure logging after migrations (Alembic's fileConfig overrides it)
+    setup_logging()
+    logger.info("Migrations completed")
     asyncio.run(main())
