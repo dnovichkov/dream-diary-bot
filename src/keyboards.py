@@ -1,79 +1,89 @@
 """Keyboard layouts for the bot."""
 
 from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
 
-# Main menu buttons text
-BTN_NEW_DREAM = "New dream"
-BTN_MY_DREAMS = "My dreams"
-BTN_SEARCH = "Search"
-BTN_EXPORT = "Export"
-BTN_HELP = "Help"
-BTN_SKIP = "Skip"
-BTN_TODAY = "Today"
-BTN_CANCEL = "Cancel"
+from src.locales import locale
 
 
-def get_main_menu() -> ReplyKeyboardMarkup:
+def get_main_menu(lang: str = "en") -> ReplyKeyboardMarkup:
     """Get main menu keyboard."""
+    t = lambda key: locale.get(lang, f"buttons.{key}")
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=BTN_NEW_DREAM),
-                KeyboardButton(text=BTN_MY_DREAMS),
+                KeyboardButton(text=t("new_dream")),
+                KeyboardButton(text=t("my_dreams")),
             ],
             [
-                KeyboardButton(text=BTN_SEARCH),
-                KeyboardButton(text=BTN_EXPORT),
+                KeyboardButton(text=t("search")),
+                KeyboardButton(text=t("export")),
             ],
             [
-                KeyboardButton(text=BTN_HELP),
+                KeyboardButton(text=t("help")),
             ],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Choose an action or type a command...",
+        input_field_placeholder=locale.get(lang, "placeholders.main_menu"),
     )
 
 
-def get_skip_cancel_keyboard() -> ReplyKeyboardMarkup:
+def get_skip_cancel_keyboard(lang: str = "en") -> ReplyKeyboardMarkup:
     """Get keyboard with Skip and Cancel buttons for multi-step forms."""
+    t = lambda key: locale.get(lang, f"buttons.{key}")
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=BTN_SKIP),
-                KeyboardButton(text=BTN_CANCEL),
+                KeyboardButton(text=t("skip")),
+                KeyboardButton(text=t("cancel")),
             ],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Enter value, skip, or cancel...",
+        input_field_placeholder=locale.get(lang, "placeholders.skip_cancel"),
     )
 
 
-def get_cancel_keyboard() -> ReplyKeyboardMarkup:
+def get_cancel_keyboard(lang: str = "en") -> ReplyKeyboardMarkup:
     """Get keyboard with only Cancel button (for required fields)."""
+    t = lambda key: locale.get(lang, f"buttons.{key}")
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_CANCEL)],
+            [KeyboardButton(text=t("cancel"))],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Enter value or cancel...",
+        input_field_placeholder=locale.get(lang, "placeholders.cancel"),
     )
 
 
-def get_today_cancel_keyboard() -> ReplyKeyboardMarkup:
+def get_today_cancel_keyboard(lang: str = "en") -> ReplyKeyboardMarkup:
     """Get keyboard with Today and Cancel buttons for date input."""
+    t = lambda key: locale.get(lang, f"buttons.{key}")
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=BTN_TODAY),
-                KeyboardButton(text=BTN_CANCEL),
+                KeyboardButton(text=t("today")),
+                KeyboardButton(text=t("cancel")),
             ],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Enter date or use today...",
+        input_field_placeholder=locale.get(lang, "placeholders.today_cancel"),
+    )
+
+
+def get_language_keyboard() -> InlineKeyboardMarkup:
+    """Get language selection keyboard."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="English", callback_data="lang:en"),
+                InlineKeyboardButton(text="Русский", callback_data="lang:ru"),
+            ]
+        ]
     )
 
 

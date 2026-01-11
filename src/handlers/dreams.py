@@ -11,17 +11,14 @@ from sqlalchemy import func, select
 
 from src.config import settings
 from src.database import async_session
+from src.handlers.start import get_user_language
 from src.keyboards import (
-    BTN_EXPORT,
-    BTN_MY_DREAMS,
-    BTN_NEW_DREAM,
-    BTN_SKIP,
-    BTN_TODAY,
     get_cancel_keyboard,
     get_main_menu,
     get_skip_cancel_keyboard,
     get_today_cancel_keyboard,
 )
+from src.locales import locale
 from src.models import Dream, User
 
 router = Router()
@@ -44,12 +41,15 @@ class EditDreamStates(StatesGroup):
     waiting_for_value = State()
 
 
-async def get_user_id(telegram_id: int) -> int | None:
-    """Get internal user ID by Telegram ID."""
+async def get_user_id_and_lang(telegram_id: int) -> tuple[int | None, str]:
+    """Get internal user ID and language by Telegram ID."""
     async with async_session() as session:
-        stmt = select(User.id).where(User.telegram_id == telegram_id)
+        stmt = select(User).where(User.telegram_id == telegram_id)
         result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        if user:
+            return user.id, user.language
+        return None, "en"
 
 
 async def get_dream_by_id(dream_id: int, user_id: int) -> Dream | None:
@@ -64,138 +64,169 @@ async def get_dream_by_id(dream_id: int, user_id: int) -> Dream | None:
 
 
 @router.message(Command("new"))
-@router.message(F.text == BTN_NEW_DREAM)
+@router.message(F.text.in_([
+    locale.get("en", "buttons.new_dream"),
+    locale.get("ru", "buttons.new_dream"),
+]))
 async def cmd_new(message: Message, state: FSMContext) -> None:
     """Start creating a new dream entry."""
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
-    await state.update_data(user_id=user_id)
+    await state.update_data(user_id=user_id, lang=lang)
     await state.set_state(NewDreamStates.waiting_for_title)
     await message.answer(
-        "<b>Creating a new dream entry</b>\n\n"
-        "Step 1/5: Enter the <b>title</b> of your dream.",
-        reply_markup=get_cancel_keyboard(),
+        locale.get(lang, "new_dream.creating"),
+        reply_markup=get_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_title)
 async def process_title(message: Message, state: FSMContext) -> None:
     """Process dream title."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter a text title.")
+        await message.answer(locale.get(lang, "new_dream.enter_title"))
         return
 
     title = message.text.strip()
     if len(title) > 255:
-        await message.answer("Title is too long (max 255 characters). Please try again.")
+        await message.answer(locale.get(lang, "new_dream.title_too_long"))
         return
 
     await state.update_data(title=title)
     await state.set_state(NewDreamStates.waiting_for_description)
     await message.answer(
-        "Step 2/5: Enter the <b>description</b> of your dream.",
-        reply_markup=get_skip_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_2"),
+        reply_markup=get_skip_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_description, Command("skip"))
-@router.message(NewDreamStates.waiting_for_description, F.text == BTN_SKIP)
+@router.message(NewDreamStates.waiting_for_description, F.text.in_([
+    locale.get("en", "buttons.skip"),
+    locale.get("ru", "buttons.skip"),
+]))
 async def skip_description(message: Message, state: FSMContext) -> None:
     """Skip description."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     await state.update_data(description="")
     await state.set_state(NewDreamStates.waiting_for_tags)
     await message.answer(
-        "Step 3/5: Enter <b>tags</b> (comma-separated keywords).\n"
-        "Example: flying, lucid, nightmare",
-        reply_markup=get_skip_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_3"),
+        reply_markup=get_skip_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_description)
 async def process_description(message: Message, state: FSMContext) -> None:
     """Process dream description."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter a text description or tap Skip.")
+        await message.answer(locale.get(lang, "new_dream.enter_description"))
         return
 
     await state.update_data(description=message.text.strip())
     await state.set_state(NewDreamStates.waiting_for_tags)
     await message.answer(
-        "Step 3/5: Enter <b>tags</b> (comma-separated keywords).\n"
-        "Example: flying, lucid, nightmare",
-        reply_markup=get_skip_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_3"),
+        reply_markup=get_skip_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_tags, Command("skip"))
-@router.message(NewDreamStates.waiting_for_tags, F.text == BTN_SKIP)
+@router.message(NewDreamStates.waiting_for_tags, F.text.in_([
+    locale.get("en", "buttons.skip"),
+    locale.get("ru", "buttons.skip"),
+]))
 async def skip_tags(message: Message, state: FSMContext) -> None:
     """Skip tags."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     await state.update_data(tags="")
     await state.set_state(NewDreamStates.waiting_for_notes)
     await message.answer(
-        "Step 4/5: Enter any personal <b>notes</b> or comments.",
-        reply_markup=get_skip_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_4"),
+        reply_markup=get_skip_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_tags)
 async def process_tags(message: Message, state: FSMContext) -> None:
     """Process dream tags."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter tags or tap Skip.")
+        await message.answer(locale.get(lang, "new_dream.enter_tags"))
         return
 
     tags = message.text.strip()
     if len(tags) > 500:
-        await message.answer("Tags are too long (max 500 characters). Please try again.")
+        await message.answer(locale.get(lang, "new_dream.tags_too_long"))
         return
 
     await state.update_data(tags=tags)
     await state.set_state(NewDreamStates.waiting_for_notes)
     await message.answer(
-        "Step 4/5: Enter any personal <b>notes</b> or comments.",
-        reply_markup=get_skip_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_4"),
+        reply_markup=get_skip_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_notes, Command("skip"))
-@router.message(NewDreamStates.waiting_for_notes, F.text == BTN_SKIP)
+@router.message(NewDreamStates.waiting_for_notes, F.text.in_([
+    locale.get("en", "buttons.skip"),
+    locale.get("ru", "buttons.skip"),
+]))
 async def skip_notes(message: Message, state: FSMContext) -> None:
     """Skip notes."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     await state.update_data(notes="")
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
-        f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"Or tap Today to use: {date.today()}",
-        reply_markup=get_today_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_5", today=date.today()),
+        reply_markup=get_today_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_notes)
 async def process_notes(message: Message, state: FSMContext) -> None:
     """Process dream notes."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter notes or tap Skip.")
+        await message.answer(locale.get(lang, "new_dream.enter_notes"))
         return
 
     await state.update_data(notes=message.text.strip())
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
-        f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"Or tap Today to use: {date.today()}",
-        reply_markup=get_today_cancel_keyboard(),
+        locale.get(lang, "new_dream.step_5", today=date.today()),
+        reply_markup=get_today_cancel_keyboard(lang),
     )
 
 
 @router.message(NewDreamStates.waiting_for_date, Command("today"))
-@router.message(NewDreamStates.waiting_for_date, F.text == BTN_TODAY)
+@router.message(NewDreamStates.waiting_for_date, F.text.in_([
+    locale.get("en", "buttons.today"),
+    locale.get("ru", "buttons.today"),
+]))
 async def use_today_date(message: Message, state: FSMContext) -> None:
     """Use today's date."""
     await state.update_data(dream_date=date.today())
@@ -205,16 +236,17 @@ async def use_today_date(message: Message, state: FSMContext) -> None:
 @router.message(NewDreamStates.waiting_for_date)
 async def process_date(message: Message, state: FSMContext) -> None:
     """Process dream date."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter a date or tap Today.")
+        await message.answer(locale.get(lang, "new_dream.enter_date"))
         return
 
     try:
         dream_date = date.fromisoformat(message.text.strip())
     except ValueError:
-        await message.answer(
-            "Invalid date format. Please use YYYY-MM-DD (e.g., 2024-01-15) or tap Today."
-        )
+        await message.answer(locale.get(lang, "new_dream.invalid_date"))
         return
 
     await state.update_data(dream_date=dream_date)
@@ -224,6 +256,7 @@ async def process_date(message: Message, state: FSMContext) -> None:
 async def save_new_dream(message: Message, state: FSMContext) -> None:
     """Save the new dream to database."""
     data = await state.get_data()
+    lang = data.get("lang", "en")
     await state.clear()
 
     async with async_session() as session:
@@ -240,28 +273,36 @@ async def save_new_dream(message: Message, state: FSMContext) -> None:
         await session.refresh(dream)
 
         await message.answer(
-            f"Dream saved successfully!\n\n"
-            f"<b>ID:</b> {dream.id}\n"
-            f"<b>Title:</b> {escape(dream.title)}\n"
-            f"<b>Date:</b> {dream.dream_date}\n\n"
-            f"Use /view {dream.id} to see the full entry.",
-            reply_markup=get_main_menu(),
+            locale.get(
+                lang,
+                "new_dream.saved",
+                id=dream.id,
+                title=escape(dream.title),
+                date=dream.dream_date,
+            ),
+            reply_markup=get_main_menu(lang),
         )
 
 
 # --- LIST DREAMS ---
 
 
-def build_pagination_keyboard(page: int, total_pages: int) -> InlineKeyboardMarkup | None:
+def build_pagination_keyboard(page: int, total_pages: int, lang: str = "en") -> InlineKeyboardMarkup | None:
     """Build pagination keyboard."""
     if total_pages <= 1:
         return None
 
     buttons = []
     if page > 0:
-        buttons.append(InlineKeyboardButton(text="<< Prev", callback_data=f"page:{page - 1}"))
+        buttons.append(InlineKeyboardButton(
+            text=locale.get(lang, "buttons.prev"),
+            callback_data=f"page:{page - 1}",
+        ))
     if page < total_pages - 1:
-        buttons.append(InlineKeyboardButton(text="Next >>", callback_data=f"page:{page + 1}"))
+        buttons.append(InlineKeyboardButton(
+            text=locale.get(lang, "buttons.next"),
+            callback_data=f"page:{page + 1}",
+        ))
 
     if not buttons:
         return None
@@ -270,23 +311,27 @@ def build_pagination_keyboard(page: int, total_pages: int) -> InlineKeyboardMark
 
 
 @router.message(Command("list"))
-@router.message(F.text == BTN_MY_DREAMS)
+@router.message(F.text.in_([
+    locale.get("en", "buttons.my_dreams"),
+    locale.get("ru", "buttons.my_dreams"),
+]))
 async def cmd_list(message: Message) -> None:
     """List user's dreams with pagination."""
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
-    await show_dreams_page(message, user_id, page=0)
+    await show_dreams_page(message, user_id, lang, page=0)
 
 
 async def show_dreams_page(
     message: Message,
     user_id: int,
+    lang: str,
     page: int,
     edit_message: bool = False,
 ) -> None:
@@ -300,7 +345,7 @@ async def show_dreams_page(
         total = (await session.execute(count_stmt)).scalar() or 0
 
         if total == 0:
-            text = "You don't have any dream entries yet.\nUse /new to create one."
+            text = locale.get(lang, "list.empty")
             if edit_message and hasattr(message, "edit_text"):
                 await message.edit_text(text)
             else:
@@ -321,15 +366,15 @@ async def show_dreams_page(
         dreams = result.scalars().all()
 
         # Format output
-        lines = [f"<b>Your dreams</b> (page {page + 1}/{total_pages}):\n"]
+        lines = [locale.get(lang, "list.header", page=page + 1, total_pages=total_pages) + "\n"]
         for dream in dreams:
             lines.append(f"<b>#{dream.id}</b> {dream.format_short()}")
 
-        lines.append(f"\nTotal: {total} entries")
-        lines.append("Use /view [id] to see details.")
+        lines.append(f"\n{locale.get(lang, 'list.total', count=total)}")
+        lines.append(locale.get(lang, "list.view_hint"))
 
         text = "\n".join(lines)
-        keyboard = build_pagination_keyboard(page, total_pages)
+        keyboard = build_pagination_keyboard(page, total_pages, lang)
 
         if edit_message and hasattr(message, "edit_text"):
             await message.edit_text(text, reply_markup=keyboard)
@@ -344,13 +389,13 @@ async def process_pagination(callback: CallbackQuery) -> None:
         return
 
     page = int(callback.data.split(":")[1])
-    user_id = await get_user_id(callback.from_user.id)
+    user_id, lang = await get_user_id_and_lang(callback.from_user.id)
 
     if user_id is None:
-        await callback.answer("Please use /start first.")
+        await callback.answer(locale.get(lang, "not_registered"))
         return
 
-    await show_dreams_page(callback.message, user_id, page, edit_message=True)
+    await show_dreams_page(callback.message, user_id, lang, page, edit_message=True)
     await callback.answer()
 
 
@@ -363,27 +408,27 @@ async def cmd_view(message: Message, command: CommandObject) -> None:
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
     if not command.args:
-        await message.answer("Usage: /view [id]\nExample: /view 1")
+        await message.answer(locale.get(lang, "view.usage"))
         return
 
     try:
         dream_id = int(command.args.strip())
     except ValueError:
-        await message.answer("Invalid ID. Please provide a number.")
+        await message.answer(locale.get(lang, "view.invalid_id"))
         return
 
     dream = await get_dream_by_id(dream_id, user_id)
     if dream is None:
-        await message.answer(f"Dream #{dream_id} not found.")
+        await message.answer(locale.get(lang, "view.not_found", id=dream_id))
         return
 
-    await message.answer(f"<pre>{dream.format_full()}</pre>")
+    await message.answer(f"<pre>{dream.format_full(lang)}</pre>")
 
 
 # --- EDIT DREAM ---
@@ -395,43 +440,42 @@ async def cmd_edit(message: Message, command: CommandObject, state: FSMContext) 
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
     if not command.args:
-        await message.answer("Usage: /edit [id]\nExample: /edit 1")
+        await message.answer(locale.get(lang, "edit.usage"))
         return
 
     try:
         dream_id = int(command.args.strip())
     except ValueError:
-        await message.answer("Invalid ID. Please provide a number.")
+        await message.answer(locale.get(lang, "view.invalid_id"))
         return
 
     dream = await get_dream_by_id(dream_id, user_id)
     if dream is None:
-        await message.answer(f"Dream #{dream_id} not found.")
+        await message.answer(locale.get(lang, "view.not_found", id=dream_id))
         return
 
-    await state.update_data(edit_dream_id=dream_id, user_id=user_id)
+    await state.update_data(edit_dream_id=dream_id, user_id=user_id, lang=lang)
     await state.set_state(EditDreamStates.waiting_for_field)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Title", callback_data="edit:title")],
-            [InlineKeyboardButton(text="Description", callback_data="edit:description")],
-            [InlineKeyboardButton(text="Tags", callback_data="edit:tags")],
-            [InlineKeyboardButton(text="Notes", callback_data="edit:notes")],
-            [InlineKeyboardButton(text="Date", callback_data="edit:dream_date")],
-            [InlineKeyboardButton(text="Cancel", callback_data="edit:cancel")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_title"), callback_data="edit:title")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_description"), callback_data="edit:description")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_tags"), callback_data="edit:tags")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_notes"), callback_data="edit:notes")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_date"), callback_data="edit:dream_date")],
+            [InlineKeyboardButton(text=locale.get(lang, "edit.field_cancel"), callback_data="edit:cancel")],
         ]
     )
 
     await message.answer(
-        f"Editing dream #{dream_id}: <b>{escape(dream.title)}</b>\n\n"
-        "Select the field to edit:",
+        locale.get(lang, "edit.header", id=dream_id, title=escape(dream.title)),
         reply_markup=keyboard,
     )
 
@@ -442,40 +486,41 @@ async def process_edit_field_selection(callback: CallbackQuery, state: FSMContex
     if callback.message is None:
         return
 
+    data = await state.get_data()
+    lang = data.get("lang", "en")
     field = callback.data.split(":")[1]
 
     if field == "cancel":
         await state.clear()
-        await callback.message.edit_text("Edit cancelled.")
+        await callback.message.edit_text(locale.get(lang, "edit.cancelled"))
         await callback.answer()
         return
 
     await state.update_data(edit_field=field)
     await state.set_state(EditDreamStates.waiting_for_value)
 
-    field_names = {
-        "title": "title",
-        "description": "description",
-        "tags": "tags",
-        "notes": "notes",
-        "dream_date": "date (YYYY-MM-DD)",
+    field_prompts = {
+        "title": "edit.enter_title",
+        "description": "edit.enter_description",
+        "tags": "edit.enter_tags",
+        "notes": "edit.enter_notes",
+        "dream_date": "edit.enter_date",
     }
 
-    await callback.message.edit_text(
-        f"Enter the new <b>{field_names[field]}</b>:\n"
-        "(Use /cancel to abort)"
-    )
+    await callback.message.edit_text(locale.get(lang, field_prompts[field]))
     await callback.answer()
 
 
 @router.message(EditDreamStates.waiting_for_value)
 async def process_edit_value(message: Message, state: FSMContext) -> None:
     """Process the new value for the field."""
+    data = await state.get_data()
+    lang = data.get("lang", "en")
+
     if not message.text:
-        await message.answer("Please enter a text value.")
+        await message.answer(locale.get(lang, "edit.enter_value"))
         return
 
-    data = await state.get_data()
     field = data["edit_field"]
     dream_id = data["edit_dream_id"]
     user_id = data["user_id"]
@@ -484,16 +529,16 @@ async def process_edit_value(message: Message, state: FSMContext) -> None:
 
     # Validate based on field
     if field == "title" and len(value) > 255:
-        await message.answer("Title is too long (max 255 characters).")
+        await message.answer(locale.get(lang, "new_dream.title_too_long"))
         return
     if field == "tags" and len(value) > 500:
-        await message.answer("Tags are too long (max 500 characters).")
+        await message.answer(locale.get(lang, "new_dream.tags_too_long"))
         return
     if field == "dream_date":
         try:
             value = date.fromisoformat(value)
         except ValueError:
-            await message.answer("Invalid date format. Use YYYY-MM-DD.")
+            await message.answer(locale.get(lang, "new_dream.invalid_date"))
             return
 
     async with async_session() as session:
@@ -502,7 +547,7 @@ async def process_edit_value(message: Message, state: FSMContext) -> None:
         dream = result.scalar_one_or_none()
 
         if dream is None:
-            await message.answer("Dream not found.")
+            await message.answer(locale.get(lang, "edit.not_found"))
             await state.clear()
             return
 
@@ -510,10 +555,7 @@ async def process_edit_value(message: Message, state: FSMContext) -> None:
         await session.commit()
 
     await state.clear()
-    await message.answer(
-        f"Dream #{dream_id} updated successfully!\n"
-        f"Use /view {dream_id} to see the changes."
-    )
+    await message.answer(locale.get(lang, "edit.updated", id=dream_id))
 
 
 # --- DELETE DREAM ---
@@ -525,35 +567,35 @@ async def cmd_delete(message: Message, command: CommandObject) -> None:
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
     if not command.args:
-        await message.answer("Usage: /delete [id]\nExample: /delete 1")
+        await message.answer(locale.get(lang, "delete.usage"))
         return
 
     try:
         dream_id = int(command.args.strip())
     except ValueError:
-        await message.answer("Invalid ID. Please provide a number.")
+        await message.answer(locale.get(lang, "view.invalid_id"))
         return
 
     dream = await get_dream_by_id(dream_id, user_id)
     if dream is None:
-        await message.answer(f"Dream #{dream_id} not found.")
+        await message.answer(locale.get(lang, "view.not_found", id=dream_id))
         return
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Yes, delete",
+                    text=locale.get(lang, "buttons.yes_delete"),
                     callback_data=f"delete:confirm:{dream_id}",
                 ),
                 InlineKeyboardButton(
-                    text="No, cancel",
+                    text=locale.get(lang, "buttons.no_cancel"),
                     callback_data="delete:cancel",
                 ),
             ]
@@ -561,9 +603,13 @@ async def cmd_delete(message: Message, command: CommandObject) -> None:
     )
 
     await message.answer(
-        f"Are you sure you want to delete dream #{dream_id}?\n"
-        f"<b>{escape(dream.title)}</b> ({dream.dream_date})\n\n"
-        "This action cannot be undone.",
+        locale.get(
+            lang,
+            "delete.confirm",
+            id=dream_id,
+            title=escape(dream.title),
+            date=dream.dream_date,
+        ),
         reply_markup=keyboard,
     )
 
@@ -574,20 +620,21 @@ async def process_delete_confirmation(callback: CallbackQuery) -> None:
     if callback.message is None or callback.from_user is None:
         return
 
+    _, lang = await get_user_id_and_lang(callback.from_user.id)
     parts = callback.data.split(":")
     action = parts[1]
 
     if action == "cancel":
-        await callback.message.edit_text("Deletion cancelled.")
+        await callback.message.edit_text(locale.get(lang, "delete.cancelled"))
         await callback.answer()
         return
 
     if action == "confirm":
         dream_id = int(parts[2])
-        user_id = await get_user_id(callback.from_user.id)
+        user_id, lang = await get_user_id_and_lang(callback.from_user.id)
 
         if user_id is None:
-            await callback.answer("Please use /start first.")
+            await callback.answer(locale.get(lang, "not_registered"))
             return
 
         async with async_session() as session:
@@ -596,52 +643,57 @@ async def process_delete_confirmation(callback: CallbackQuery) -> None:
             dream = result.scalar_one_or_none()
 
             if dream is None:
-                await callback.message.edit_text("Dream not found or already deleted.")
+                await callback.message.edit_text(locale.get(lang, "delete.not_found"))
                 await callback.answer()
                 return
 
             await session.delete(dream)
             await session.commit()
 
-        await callback.message.edit_text(f"Dream #{dream_id} has been deleted.")
-        await callback.answer("Deleted")
+        await callback.message.edit_text(locale.get(lang, "delete.deleted", id=dream_id))
+        await callback.answer()
 
 
 # --- EXPORT DREAMS ---
 
 
-def format_dream_for_export(dream: Dream, index: int) -> str:
+def format_dream_for_export(dream: Dream, index: int, lang: str = "en") -> str:
     """Format a single dream for text export."""
+    t = lambda key: locale.get(lang, f"export.{key}")
+
     lines = [
         "=" * 40,
-        f"Dream #{index} | {dream.dream_date}",
+        locale.get(lang, "export.dream_header", index=index, date=dream.dream_date),
         "-" * 40,
-        f"Title: {dream.title}",
+        f"{t('field_title')}: {dream.title}",
     ]
 
     if dream.description:
-        lines.append(f"\nDescription:\n{dream.description}")
+        lines.append(f"\n{t('field_description')}:\n{dream.description}")
 
     if dream.tags:
-        lines.append(f"\nTags: {dream.tags}")
+        lines.append(f"\n{t('field_tags')}: {dream.tags}")
 
     if dream.notes:
-        lines.append(f"\nNotes:\n{dream.notes}")
+        lines.append(f"\n{t('field_notes')}:\n{dream.notes}")
 
     lines.append("")
     return "\n".join(lines)
 
 
 @router.message(Command("export"))
-@router.message(F.text == BTN_EXPORT)
+@router.message(F.text.in_([
+    locale.get("en", "buttons.export"),
+    locale.get("ru", "buttons.export"),
+]))
 async def cmd_export(message: Message) -> None:
     """Export all user's dreams to a text file."""
     if message.from_user is None:
         return
 
-    user_id = await get_user_id(message.from_user.id)
+    user_id, lang = await get_user_id_and_lang(message.from_user.id)
     if user_id is None:
-        await message.answer("Please use /start first to register.")
+        await message.answer(locale.get(lang, "not_registered"))
         return
 
     async with async_session() as session:
@@ -655,21 +707,17 @@ async def cmd_export(message: Message) -> None:
 
     if not dreams:
         await message.answer(
-            "Your dream diary is empty.\nUse /new to create your first entry.",
-            reply_markup=get_main_menu(),
+            locale.get(lang, "export.empty"),
+            reply_markup=get_main_menu(lang),
         )
         return
 
     # Build text content
-    lines = [
-        "Dream Diary",
-        f"Export date: {date.today()}",
-        f"Total dreams: {len(dreams)}",
-        "",
-    ]
+    header = locale.get(lang, "export.header", date=date.today(), count=len(dreams))
+    lines = [header, ""]
 
     for i, dream in enumerate(dreams, start=1):
-        lines.append(format_dream_for_export(dream, i))
+        lines.append(format_dream_for_export(dream, i, lang))
 
     content = "\n".join(lines)
 
@@ -680,6 +728,6 @@ async def cmd_export(message: Message) -> None:
 
     await message.answer_document(
         document=input_file,
-        caption=f"Your dream diary export ({len(dreams)} dreams)",
-        reply_markup=get_main_menu(),
+        caption=locale.get(lang, "export.caption", count=len(dreams)),
+        reply_markup=get_main_menu(lang),
     )

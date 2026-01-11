@@ -4,6 +4,8 @@ from html import escape
 from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from src.locales import locale
+
 
 class Base(DeclarativeBase):
     """Base class for all models."""
@@ -18,6 +20,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    language: Mapped[str] = mapped_column(String(5), default="en")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -60,19 +63,23 @@ class Dream(Base):
         tags_str = f" [{escape(self.tags)}]" if self.tags else ""
         return f"{self.dream_date} | {title}{tags_str}"
 
-    def format_full(self) -> str:
+    def format_full(self, lang: str = "en") -> str:
         """Format dream for detailed view (HTML-escaped)."""
+        t = lambda key: locale.get(lang, f"dream_format.{key}")
+        empty = t("empty")
+        none = t("none")
+
         lines = [
             f"ID: {self.id}",
-            f"Date: {self.dream_date}",
-            f"Title: {escape(self.title)}",
+            f"{t('date')}: {self.dream_date}",
+            f"{t('title')}: {escape(self.title)}",
             "",
-            "Description:",
-            escape(self.description) if self.description else "(empty)",
+            f"{t('description')}:",
+            escape(self.description) if self.description else empty,
             "",
-            f"Tags: {escape(self.tags) if self.tags else '(none)'}",
+            f"{t('tags')}: {escape(self.tags) if self.tags else none}",
             "",
-            "Notes:",
-            escape(self.notes) if self.notes else "(empty)",
+            f"{t('notes')}:",
+            escape(self.notes) if self.notes else empty,
         ]
         return "\n".join(lines)

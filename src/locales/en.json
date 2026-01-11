@@ -1,0 +1,115 @@
+{
+  "buttons": {
+    "new_dream": "New dream",
+    "my_dreams": "My dreams",
+    "search": "Search",
+    "export": "Export",
+    "help": "Help",
+    "skip": "Skip",
+    "today": "Today",
+    "cancel": "Cancel",
+    "yes_delete": "Yes, delete",
+    "no_cancel": "No, cancel",
+    "prev": "<< Prev",
+    "next": "Next >>"
+  },
+  "placeholders": {
+    "main_menu": "Choose an action or type a command...",
+    "skip_cancel": "Enter value, skip, or cancel...",
+    "cancel": "Enter value or cancel...",
+    "today_cancel": "Enter date or use today...",
+    "search": "Enter search query..."
+  },
+  "language": {
+    "choose": "Please choose your language:",
+    "changed": "Language changed to English.",
+    "btn_en": "English",
+    "btn_ru": "Русский"
+  },
+  "welcome": "Welcome to <b>Dream Diary Bot</b>!\n\nThis bot helps you keep a personal dream journal. Record your dreams, add tags and notes, and search through them later.\n\nUse the menu buttons below or type /help for commands.",
+  "help": "<b>Dream Diary Bot</b> - your personal dream journal.\n\n<b>Menu buttons:</b>\n- <b>New dream</b> - Create a new dream entry\n- <b>My dreams</b> - View your dreams list\n- <b>Search</b> - Search dreams by keywords\n- <b>Export</b> - Export all dreams to a text file\n- <b>Help</b> - Show this help message\n\n<b>Commands:</b>\n/new - Create a new dream entry\n/list - View your dreams (with pagination)\n/search <query> - Search dreams by keywords\n/view <id> - View a specific dream\n/edit <id> - Edit a dream entry\n/delete <id> - Delete a dream entry\n/export - Export all dreams to a text file\n/language - Change language\n/cancel - Cancel current operation\n/help - Show this help message\n\n<b>Dream entry structure:</b>\n- Title (required)\n- Description\n- Tags (comma-separated keywords)\n- Notes (personal comments)\n- Date (defaults to today)",
+  "cancel": {
+    "nothing": "Nothing to cancel.",
+    "cancelled": "Operation cancelled."
+  },
+  "not_registered": "Please use /start first to register.",
+  "new_dream": {
+    "creating": "<b>Creating a new dream entry</b>\n\nStep 1/5: Enter the <b>title</b> of your dream.",
+    "step_2": "Step 2/5: Enter the <b>description</b> of your dream.",
+    "step_3": "Step 3/5: Enter <b>tags</b> (comma-separated keywords).\nExample: flying, lucid, nightmare",
+    "step_4": "Step 4/5: Enter any personal <b>notes</b> or comments.",
+    "step_5": "Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\nOr tap Today to use: {today}",
+    "enter_title": "Please enter a text title.",
+    "title_too_long": "Title is too long (max 255 characters). Please try again.",
+    "enter_description": "Please enter a text description or tap Skip.",
+    "enter_tags": "Please enter tags or tap Skip.",
+    "tags_too_long": "Tags are too long (max 500 characters). Please try again.",
+    "enter_notes": "Please enter notes or tap Skip.",
+    "enter_date": "Please enter a date or tap Today.",
+    "invalid_date": "Invalid date format. Please use YYYY-MM-DD (e.g., 2024-01-15) or tap Today.",
+    "saved": "Dream saved successfully!\n\n<b>ID:</b> {id}\n<b>Title:</b> {title}\n<b>Date:</b> {date}\n\nUse /view {id} to see the full entry."
+  },
+  "list": {
+    "empty": "You don't have any dream entries yet.\nUse /new to create one.",
+    "header": "<b>Your dreams</b> (page {page}/{total_pages}):",
+    "total": "Total: {count} entries",
+    "view_hint": "Use /view [id] to see details."
+  },
+  "view": {
+    "usage": "Usage: /view [id]\nExample: /view 1",
+    "invalid_id": "Invalid ID. Please provide a number.",
+    "not_found": "Dream #{id} not found."
+  },
+  "edit": {
+    "usage": "Usage: /edit [id]\nExample: /edit 1",
+    "header": "Editing dream #{id}: <b>{title}</b>\n\nSelect the field to edit:",
+    "field_title": "Title",
+    "field_description": "Description",
+    "field_tags": "Tags",
+    "field_notes": "Notes",
+    "field_date": "Date",
+    "field_cancel": "Cancel",
+    "enter_title": "Enter the new <b>title</b>:\n(Use /cancel to abort)",
+    "enter_description": "Enter the new <b>description</b>:\n(Use /cancel to abort)",
+    "enter_tags": "Enter the new <b>tags</b>:\n(Use /cancel to abort)",
+    "enter_notes": "Enter the new <b>notes</b>:\n(Use /cancel to abort)",
+    "enter_date": "Enter the new <b>date (YYYY-MM-DD)</b>:\n(Use /cancel to abort)",
+    "cancelled": "Edit cancelled.",
+    "enter_value": "Please enter a text value.",
+    "updated": "Dream #{id} updated successfully!\nUse /view {id} to see the changes.",
+    "not_found": "Dream not found."
+  },
+  "delete": {
+    "usage": "Usage: /delete [id]\nExample: /delete 1",
+    "confirm": "Are you sure you want to delete dream #{id}?\n<b>{title}</b> ({date})\n\nThis action cannot be undone.",
+    "cancelled": "Deletion cancelled.",
+    "deleted": "Dream #{id} has been deleted.",
+    "not_found": "Dream not found or already deleted."
+  },
+  "search": {
+    "prompt": "Enter your search query.\nSearches in title, description, tags, and notes.",
+    "usage": "Usage: /search [query]\nExample: /search flying",
+    "no_results": "No dreams found matching \"{query}\".",
+    "header": "<b>Search results for \"{query}\":</b>\n",
+    "found": "Found: {count} entries"
+  },
+  "export": {
+    "empty": "Your dream diary is empty.\nUse /new to create your first entry.",
+    "header": "Dream Diary\nExport date: {date}\nTotal dreams: {count}",
+    "dream_header": "Dream #{index} | {date}",
+    "field_title": "Title",
+    "field_description": "Description",
+    "field_tags": "Tags",
+    "field_notes": "Notes",
+    "caption": "Your dream diary export ({count} dreams)"
+  },
+  "dream_format": {
+    "date": "Date",
+    "title": "Title",
+    "tags": "Tags",
+    "notes": "Notes",
+    "description": "Description",
+    "empty": "(empty)",
+    "none": "(none)"
+  }
+}

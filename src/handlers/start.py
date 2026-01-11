@@ -1,106 +1,159 @@
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 
 from src.database import async_session
-from src.keyboards import BTN_CANCEL, BTN_HELP, get_main_menu
+from src.keyboards import get_language_keyboard, get_main_menu
+from src.locales import locale
 from src.models import User
 
 router = Router()
 
-HELP_TEXT = """
-<b>Dream Diary Bot</b> - your personal dream journal.
 
-<b>Menu buttons:</b>
-• <b>New dream</b> - Create a new dream entry
-• <b>My dreams</b> - View your dreams list
-• <b>Search</b> - Search dreams by keywords
-• <b>Export</b> - Export all dreams to a text file
-• <b>Help</b> - Show this help message
-
-<b>Commands:</b>
-/new - Create a new dream entry
-/list - View your dreams (with pagination)
-/search &lt;query&gt; - Search dreams by keywords
-/view &lt;id&gt; - View a specific dream
-/edit &lt;id&gt; - Edit a dream entry
-/delete &lt;id&gt; - Delete a dream entry
-/export - Export all dreams to a text file
-/cancel - Cancel current operation
-/help - Show this help message
-
-<b>Dream entry structure:</b>
-- Title (required)
-- Description
-- Tags (comma-separated keywords)
-- Notes (personal comments)
-- Date (defaults to today)
-""".strip()
-
-
-async def get_or_create_user(telegram_id: int) -> User:
-    """Get existing user or create a new one."""
+async def get_user(telegram_id: int) -> User | None:
+    """Get user by Telegram ID."""
     async with async_session() as session:
         stmt = select(User).where(User.telegram_id == telegram_id)
         result = await session.execute(stmt)
-        user = result.scalar_one_or_none()
+        return result.scalar_one_or_none()
 
-        if user is None:
-            user = User(telegram_id=telegram_id)
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
 
-        return user
+async def get_user_language(telegram_id: int) -> str:
+    """Get user's language preference."""
+    user = await get_user(telegram_id)
+    return user.language if user else "en"
 
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
-    """Handle /start command - register user and show welcome message."""
+    """Handle /start command - register user or show welcome."""
     if message.from_user is None:
         return
 
-    await get_or_create_user(message.from_user.id)
+    user = await get_user(message.from_user.id)
 
-    welcome_text = (
-        "Welcome to <b>Dream Diary Bot</b>!\n\n"
-        "This bot helps you keep a personal dream journal. "
-        "Record your dreams, add tags and notes, and search through them later.\n\n"
-        "Use the menu buttons below or type /help for commands."
+    if user is None:
+        # New user - ask for language
+        await message.answer(
+            "Please choose your language:\nПожалуйста, выберите язык:",
+            reply_markup=get_language_keyboard(),
+        )
+    else:
+        # Existing user - show welcome
+        lang = user.language
+        await message.answer(
+            locale.get(lang, "welcome"),
+            reply_markup=get_main_menu(lang),
+        )
+
+
+@router.callback_query(F.data.startswith("lang:"))
+async def process_language_selection(callback: CallbackQuery) -> None:
+    """Handle language selection from inline keyboard."""
+    if callback.message is None or callback.from_user is None:
+        return
+
+    lang = callback.data.split(":")[1]
+
+    async with async_session() as session:
+        stmt = select(User).where(User.telegram_id == callback.from_user.id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            # Create new user with selected language
+            user = User(telegram_id=callback.from_user.id, language=lang)
+            session.add(user)
+            await session.commit()
+        else:
+            # Update existing user's language
+            user.language = lang
+            await session.commit()
+
+    # Remove inline keyboard and show welcome
+    await callback.message.edit_text(locale.get(lang, "language.changed"))
+    await callback.message.answer(
+        locale.get(lang, "welcome"),
+        reply_markup=get_main_menu(lang),
     )
-    await message.answer(welcome_text, reply_markup=get_main_menu())
+    await callback.answer()
 
 
 @router.message(Command("help"))
-@router.message(F.text == BTN_HELP)
 async def cmd_help(message: Message) -> None:
-    """Handle /help command and Help button - show available commands."""
-    await message.answer(HELP_TEXT, reply_markup=get_main_menu())
+    """Handle /help command - show available commands."""
+    if message.from_user is None:
+        return
+
+    lang = await get_user_language(message.from_user.id)
+    await message.answer(
+        locale.get(lang, "help"),
+        reply_markup=get_main_menu(lang),
+    )
+
+
+@router.message(F.text.in_([
+    locale.get("en", "buttons.help"),
+    locale.get("ru", "buttons.help"),
+]))
+async def btn_help(message: Message) -> None:
+    """Handle Help button press."""
+    if message.from_user is None:
+        return
+
+    lang = await get_user_language(message.from_user.id)
+    await message.answer(
+        locale.get(lang, "help"),
+        reply_markup=get_main_menu(lang),
+    )
 
 
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext) -> None:
     """Handle /cancel command - cancel current FSM operation."""
+    if message.from_user is None:
+        return
+
+    lang = await get_user_language(message.from_user.id)
     current_state = await state.get_state()
 
     if current_state is None:
-        await message.answer("Nothing to cancel.", reply_markup=get_main_menu())
+        await message.answer(
+            locale.get(lang, "cancel.nothing"),
+            reply_markup=get_main_menu(lang),
+        )
         return
 
     await state.clear()
-    await message.answer("Operation cancelled.", reply_markup=get_main_menu())
+    await message.answer(
+        locale.get(lang, "cancel.cancelled"),
+        reply_markup=get_main_menu(lang),
+    )
 
 
-@router.message(F.text == BTN_CANCEL)
+@router.message(F.text.in_([
+    locale.get("en", "buttons.cancel"),
+    locale.get("ru", "buttons.cancel"),
+]))
 async def btn_cancel(message: Message, state: FSMContext) -> None:
     """Handle Cancel button press - same as /cancel command."""
+    if message.from_user is None:
+        return
+
+    lang = await get_user_language(message.from_user.id)
     current_state = await state.get_state()
 
     if current_state is None:
-        await message.answer("Nothing to cancel.", reply_markup=get_main_menu())
+        await message.answer(
+            locale.get(lang, "cancel.nothing"),
+            reply_markup=get_main_menu(lang),
+        )
         return
 
     await state.clear()
-    await message.answer("Operation cancelled.", reply_markup=get_main_menu())
+    await message.answer(
+        locale.get(lang, "cancel.cancelled"),
+        reply_markup=get_main_menu(lang),
+    )
