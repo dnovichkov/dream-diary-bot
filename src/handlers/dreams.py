@@ -16,9 +16,11 @@ from src.keyboards import (
     BTN_MY_DREAMS,
     BTN_NEW_DREAM,
     BTN_SKIP,
+    BTN_TODAY,
     get_cancel_keyboard,
     get_main_menu,
     get_skip_cancel_keyboard,
+    get_today_cancel_keyboard,
 )
 from src.models import Dream, User
 
@@ -171,8 +173,8 @@ async def skip_notes(message: Message, state: FSMContext) -> None:
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
         f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"Tap Skip to use today: {date.today()}",
-        reply_markup=get_skip_cancel_keyboard(),
+        f"Or tap Today to use: {date.today()}",
+        reply_markup=get_today_cancel_keyboard(),
     )
 
 
@@ -187,15 +189,15 @@ async def process_notes(message: Message, state: FSMContext) -> None:
     await state.set_state(NewDreamStates.waiting_for_date)
     await message.answer(
         f"Step 5/5: Enter the <b>date</b> of the dream (YYYY-MM-DD).\n"
-        f"Tap Skip to use today: {date.today()}",
-        reply_markup=get_skip_cancel_keyboard(),
+        f"Or tap Today to use: {date.today()}",
+        reply_markup=get_today_cancel_keyboard(),
     )
 
 
-@router.message(NewDreamStates.waiting_for_date, Command("skip"))
-@router.message(NewDreamStates.waiting_for_date, F.text == BTN_SKIP)
-async def skip_date(message: Message, state: FSMContext) -> None:
-    """Skip date (use today)."""
+@router.message(NewDreamStates.waiting_for_date, Command("today"))
+@router.message(NewDreamStates.waiting_for_date, F.text == BTN_TODAY)
+async def use_today_date(message: Message, state: FSMContext) -> None:
+    """Use today's date."""
     await state.update_data(dream_date=date.today())
     await save_new_dream(message, state)
 
@@ -204,14 +206,14 @@ async def skip_date(message: Message, state: FSMContext) -> None:
 async def process_date(message: Message, state: FSMContext) -> None:
     """Process dream date."""
     if not message.text:
-        await message.answer("Please enter a date or /skip.")
+        await message.answer("Please enter a date or tap Today.")
         return
 
     try:
         dream_date = date.fromisoformat(message.text.strip())
     except ValueError:
         await message.answer(
-            "Invalid date format. Please use YYYY-MM-DD (e.g., 2024-01-15) or /skip."
+            "Invalid date format. Please use YYYY-MM-DD (e.g., 2024-01-15) or tap Today."
         )
         return
 

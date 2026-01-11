@@ -13,6 +13,7 @@ BTN_SEARCH = "Search"
 BTN_EXPORT = "Export"
 BTN_HELP = "Help"
 BTN_SKIP = "Skip"
+BTN_TODAY = "Today"
 BTN_CANCEL = "Cancel"
 
 
@@ -59,6 +60,20 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
         input_field_placeholder="Enter value or cancel...",
+    )
+
+
+def get_today_cancel_keyboard() -> ReplyKeyboardMarkup:
+    """Get keyboard with Today and Cancel buttons for date input."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=BTN_TODAY),
+                KeyboardButton(text=BTN_CANCEL),
+            ],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Enter date or use today...",
     )
 
 
