@@ -4,9 +4,11 @@ A Telegram bot for keeping a personal dream journal. Record your dreams, add tag
 
 ## Features
 
+- Multi-language support (English / Russian)
 - Personal dream diary with data isolation between users
 - Create, view, edit, and delete dream entries
 - Search dreams by keywords (title, description, tags, notes)
+- Export all dreams to a text file
 - Pagination for dream lists
 - Multi-step dialogs for creating and editing entries
 
@@ -14,13 +16,15 @@ A Telegram bot for keeping a personal dream journal. Record your dreams, add tag
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Register and get started |
+| `/start` | Register and choose language |
 | `/new` | Create a new dream entry |
 | `/list` | View your dreams (paginated) |
 | `/search <query>` | Search dreams by keywords |
 | `/view <id>` | View a specific dream |
 | `/edit <id>` | Edit a dream entry |
 | `/delete <id>` | Delete a dream entry |
+| `/export` | Export all dreams to text file |
+| `/language` | Change interface language |
 | `/cancel` | Cancel current operation |
 | `/help` | Show help message |
 
@@ -72,33 +76,63 @@ Stop the bot:
 docker-compose down
 ```
 
+## Database Migrations
+
+The bot uses Alembic for database migrations. Migrations run automatically on startup.
+
+### Manual migration commands
+
+```bash
+# Apply all pending migrations
+docker-compose exec bot alembic upgrade head
+
+# Create a new migration after changing models
+docker-compose exec bot alembic revision --autogenerate -m "description"
+
+# View migration history
+docker-compose exec bot alembic history
+```
+
 ## Project Structure
 
 ```
 dream-diary-bot/
-├── docker-compose.yml    # Docker services configuration
-├── Dockerfile            # Bot container image
-├── requirements.txt      # Python dependencies
-├── .env.example          # Environment template
-├── README.md             # This file
+├── docker-compose.yml      # Docker services configuration
+├── docker-compose.prod.yml # Production configuration
+├── Dockerfile              # Bot container image
+├── requirements.txt        # Python dependencies
+├── alembic.ini             # Alembic configuration
+├── .env.example            # Environment template
+├── README.md               # This file
+├── migrations/
+│   ├── env.py              # Alembic environment
+│   ├── script.py.mako      # Migration template
+│   └── versions/           # Migration files
 └── src/
     ├── __init__.py
-    ├── main.py           # Application entry point
-    ├── config.py         # Settings management
-    ├── database.py       # Database connection
-    ├── models.py         # SQLAlchemy models
+    ├── main.py             # Application entry point
+    ├── config.py           # Settings management
+    ├── database.py         # Database connection
+    ├── models.py           # SQLAlchemy models
+    ├── keyboards.py        # Telegram keyboards
+    ├── locales/
+    │   ├── __init__.py     # LocaleManager
+    │   ├── en.json         # English translations
+    │   └── ru.json         # Russian translations
     └── handlers/
-        ├── __init__.py   # Router setup
-        ├── start.py      # /start, /help, /cancel
-        ├── dreams.py     # /new, /list, /view, /edit, /delete
-        └── search.py     # /search
+        ├── __init__.py     # Router setup
+        ├── start.py        # /start, /help, /cancel
+        ├── language.py     # /language
+        ├── dreams.py       # /new, /list, /view, /edit, /delete, /export
+        └── search.py       # /search
 ```
 
 ## Tech Stack
 
 - Python 3.11+
 - aiogram 3.x (Telegram Bot API)
-- SQLAlchemy 2.x (ORM)
+- SQLAlchemy 2.x (async ORM)
+- Alembic (database migrations)
 - PostgreSQL (Database)
 - Docker + Docker Compose (Deployment)
 
@@ -137,6 +171,8 @@ docker-compose -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
+Migrations will run automatically on container startup.
+
 ## Development
 
 Run locally without Docker (requires PostgreSQL):
@@ -149,6 +185,9 @@ pip install -r requirements.txt
 export BOT_TOKEN=your_token
 export POSTGRES_HOST=localhost
 export POSTGRES_PASSWORD=your_password
+
+# Run migrations
+alembic upgrade head
 
 # Run the bot
 python -m src.main
